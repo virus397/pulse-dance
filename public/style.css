@@ -1,0 +1,225 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #050505;
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    touch-action: none;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    justify-content: center;
+    align-items: center;
+}
+
+.screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.active {
+    display: flex !important;
+}
+
+.hidden {
+    display: none !important;
+}
+
+h1 {
+    font-size: 2.5rem;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+}
+
+h2 {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+}
+
+p {
+    color: #aaaaaa;
+    line-height: 1.5;
+    margin-bottom: 30px;
+    max-width: 300px;
+}
+
+button {
+    background-color: #333333;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:active {
+    background-color: #555555;
+}
+
+.mood-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 250px;
+}
+
+.mood-btn {
+    width: 100%;
+    background-color: #1a1a1a;
+    border: 1px solid #333;
+}
+
+/* Active Session Styles */
+#status-header {
+    position: absolute;
+    top: 40px;
+    font-size: 1.2rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.pulse-visual {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background-color: white;
+    opacity: 0.2;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    transition: transform 0.1s ease-out, opacity 0.1s ease-out, background-color 2s ease-in-out, box-shadow 2s ease-in-out;
+}
+
+/* The slow transition to golden-peach after 15s of dancing */
+.pulse-visual.glow-hint {
+    background-color: #ffb347; 
+    box-shadow: 0 0 60px rgba(255, 179, 71, 0.8), 0 0 20px rgba(216, 112, 217, 0.5);
+    transition: background-color 5s ease-in-out, box-shadow 5s ease-in-out;
+}
+
+/* Encounter visuals (If someone joins early) */
+.pulse-visual.encounter {
+    background-color: #ffb347; 
+    box-shadow: 0 0 60px rgba(255, 179, 71, 0.8), 0 0 20px rgba(216, 112, 217, 0.5);
+}
+
+/* Sustained Encounter / Harmonized visuals */
+.pulse-visual.harmonized {
+    /* A bright, ethereal cyan/violet glow to represent deep connection */
+    background-color: #e0ffff; 
+    box-shadow: 0 0 100px rgba(224, 255, 255, 1), 0 0 50px rgba(186, 85, 211, 0.8);
+    transition: background-color 5s ease-in-out, box-shadow 5s ease-in-out;
+}
+
+.poetic-hint {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 300;
+    color: #ffb347;
+    letter-spacing: 1px;
+    line-height: 1.6;
+    opacity: 0;
+    transition: opacity 8s ease-in-out; /* Super slow, smooth fade out */
+    pointer-events: none;
+    z-index: 10;
+}
+
+.poetic-hint.visible {
+    opacity: 1;
+    transition: opacity 3s ease-in; /* Faster fade in so it feels responsive, but slow fade out */
+}
+
+#intensity-display {
+    position: absolute;
+    bottom: 80px;
+    font-size: 1.5rem;
+    color: #555;
+}
+
+/* Debug Panel */
+.debug-panel {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(20, 20, 20, 0.9);
+    border: 1px solid #444;
+    border-radius: 8px;
+    width: 280px;
+    z-index: 1000;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.debug-header {
+    background-color: #333;
+    padding: 8px 10px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+}
+
+.debug-header button {
+    padding: 2px 5px;
+    font-size: 10px;
+    background: none;
+    border: 1px solid #666;
+    border-radius: 4px;
+}
+
+.debug-content {
+    padding: 10px;
+    display: none; /* Hidden by default */
+}
+
+.debug-content.open {
+    display: block;
+}
+
+.debug-row {
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.debug-row button {
+    padding: 5px 10px;
+    font-size: 10px;
+    border-radius: 4px;
+}
+
+.debug-row input[type=range] {
+    width: 100px;
+}
+
+.debug-log-container {
+    margin-top: 10px;
+    height: 60px;
+    overflow-y: auto;
+    background-color: #000;
+    border: 1px solid #333;
+    padding: 5px;
+}
+
+#debug-log div {
+    color: #00ff00;
+    margin-bottom: 2px;
+}

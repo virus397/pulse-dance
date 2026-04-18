@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pulse Dance</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- App Container -->
+  <div id="app" class="screen">
+    <!-- Screen 1: Ready -->
+    <div id="screen-ready" class="active">
+      <h1>Pulse Dance</h1>
+      <p>A shared movement experience.</p>
+      <button id="btn-begin">Begin</button>
+    </div>
+
+    <!-- Screen 2: Permissions -->
+    <div id="screen-permissions" class="hidden">
+      <h2>Permissions</h2>
+      <p>Pulse Dance needs access to your device motion and audio to connect you with others.</p>
+      <button id="btn-grant-permissions">Allow Motion & Audio</button>
+    </div>
+
+    <!-- Screen 3: Select Mood -->
+    <div id="screen-mood" class="hidden">
+      <h2>Select your mood</h2>
+      <div class="mood-buttons">
+        <button class="mood-btn" data-mood="calm">Calm</button>
+        <button class="mood-btn" data-mood="anxious">Anxious</button>
+        <button class="mood-btn" data-mood="playful">Playful</button>
+      </div>
+    </div>
+
+    <!-- Screen 4: Active Session -->
+    <div id="screen-active" class="hidden">
+      <div id="status-header">Connecting...</div>
+      
+      <div id="poetic-hint" class="poetic-hint">something beautiful happens when we approach each other</div>
+
+      <!-- The main visual element -->
+      <div id="pulse-visual" class="pulse-visual"></div>
+      
+      <div id="intensity-display">Intensity: <span>0</span></div>
+    </div>
+  </div>
+
+  <!-- Debug Panel (Floating) -->
+  <div id="debug-panel" class="debug-panel">
+    <div class="debug-header">
+      Debug Mode 
+      <button id="btn-toggle-debug">[-]</button>
+    </div>
+    <div id="debug-content" class="debug-content">
+      <div class="debug-row">
+        <span>State:</span> <span id="debug-state">BOOT</span>
+      </div>
+      <div class="debug-row">
+        <button id="debug-btn-solo">Force Solo</button>
+        <button id="debug-btn-encounter">Force Encounter</button>
+      </div>
+      <div class="debug-row">
+        <label>Simulate Motion:</label>
+        <input type="range" id="debug-intensity" min="0" max="100" value="0">
+      </div>
+      <div class="debug-row">
+        <button id="debug-btn-vibrate">Test Vibration (Android)</button>
+      </div>
+      <div class="debug-log-container">
+        <div id="debug-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Service Worker registration and App logic -->
+  <script src="app.js"></script>
+</body>
+</html>
