@@ -30,11 +30,12 @@ const STATES = {
   
   // Audio Data
   let audioContext = null;
+  let baseAudioElement = null;
   let baseAudioSource = null;
   let baseGain = null;
+  let encounterAudioElement = null;
   let encounterAudioSource = null;
   let encounterGain = null;
-  let audioBuffers = {}; // Store decoded audio buffers here
   
   // DOM Elements
   const screens = {
@@ -129,11 +130,11 @@ const STATES = {
         if (encounterGain && audioContext) {
             encounterGain.gain.setTargetAtTime(0, audioContext.currentTime, 1.5);
         }
-        if (baseAudioSource && audioContext) {
-            baseAudioSource.playbackRate.setTargetAtTime(1.0, audioContext.currentTime, 2.0);
+        if (baseAudioElement) {
+            baseAudioElement.playbackRate = 1.0;
         }
-        if (encounterAudioSource && audioContext) {
-            encounterAudioSource.playbackRate.setTargetAtTime(1.0, audioContext.currentTime, 2.0);
+        if (encounterAudioElement) {
+            encounterAudioElement.playbackRate = 1.0;
         }
         
         // Start 15-second timer purely based on time entering the state
@@ -190,11 +191,11 @@ const STATES = {
         }
         
         // 2. Pitch shift up by ~5% over 10 seconds for an uplifting, locked-in feel
-        if (baseAudioSource && audioContext) {
-            baseAudioSource.playbackRate.setTargetAtTime(1.05, audioContext.currentTime, 5.0);
+        if (baseAudioElement) {
+            baseAudioElement.playbackRate = 1.05;
         }
-        if (encounterAudioSource && audioContext) {
-            encounterAudioSource.playbackRate.setTargetAtTime(1.05, audioContext.currentTime, 5.0);
+        if (encounterAudioElement) {
+            encounterAudioElement.playbackRate = 1.05;
         }
         break;
   
@@ -317,28 +318,8 @@ const STATES = {
   
   // --- HARDWARE APIs ---
   
-  async function loadAudioFile(filename) {
-    // Try .mp3 first
-    let url = `assets/${filename}.mp3`;
-    try {
-        let response = await fetch(url);
-        if (!response.ok) {
-            // Fallback to .aiff if .mp3 is not found
-            url = `assets/${filename}.aiff`;
-            response = await fetch(url);
-        }
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const arrayBuffer = await response.arrayBuffer();
-        return await audioContext.decodeAudioData(arrayBuffer);
-    } catch (e) {
-        log(`Failed to load audio for ${filename}. Tried .mp3 and .aiff.`);
-        return null;
-    }
-  }
-
   async function initAudio() {
-    log('Loading tracks and starting audio playback...');
+    log('Streaming tracks and starting audio playback...');
     
     // Explicitly resume (needed for iOS Safari to unlock audio context on user interaction)
     if (audioContext && audioContext.state === 'suspended') {
@@ -350,44 +331,31 @@ const STATES = {
         return;
     }
     
-    ui.statusHeader.textContent = 'Loading audio... (This may take a moment)';
-
-    // Load base track based on mood
-    const baseBuffer = await loadAudioFile(currentMood);
-    // Load encounter track
-    const encounterBuffer = await loadAudioFile('encounter');
-
     // Create Base Track Nodes
     baseGain = audioContext.createGain();
     baseGain.gain.value = 0; // Starts silent, volume controlled by movement
     baseGain.connect(audioContext.destination);
     
-    if (baseBuffer) {
-        baseAudioSource = audioContext.createBufferSource();
-        baseAudioSource.buffer = baseBuffer;
-        baseAudioSource.loop = true;
-        baseAudioSource.connect(baseGain);
-        baseAudioSource.start();
-    } else {
-        log('WARNING: Base track missing. You will not hear music.');
-    }
+    baseAudioElement = new Audio(`assets/${currentMood}.mp3`);
+    baseAudioElement.loop = true;
+    baseAudioElement.crossOrigin = "anonymous";
+    baseAudioSource = audioContext.createMediaElementSource(baseAudioElement);
+    baseAudioSource.connect(baseGain);
+    baseAudioElement.play().catch(e => log('Audio play failed: ' + e));
     
     // Create Encounter Track Nodes
     encounterGain = audioContext.createGain();
     encounterGain.gain.value = 0; // Starts silent, opens during ENCOUNTER_ACTIVE
     encounterGain.connect(audioContext.destination);
     
-    if (encounterBuffer) {
-        encounterAudioSource = audioContext.createBufferSource();
-        encounterAudioSource.buffer = encounterBuffer;
-        encounterAudioSource.loop = true;
-        encounterAudioSource.connect(encounterGain);
-        encounterAudioSource.start();
-    } else {
-        log('WARNING: Encounter track missing.');
-    }
+    encounterAudioElement = new Audio(`assets/encounter.mp3`);
+    encounterAudioElement.loop = true;
+    encounterAudioElement.crossOrigin = "anonymous";
+    encounterAudioSource = audioContext.createMediaElementSource(encounterAudioElement);
+    encounterAudioSource.connect(encounterGain);
+    encounterAudioElement.play().catch(e => log('Encounter play failed: ' + e));
     
-    log('Audio initialized and playing silently.');
+    log('Audio initialized and streaming instantly.');
   }
 
   function startMotionTracking() {
