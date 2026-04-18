@@ -308,6 +308,8 @@ const STATES = {
               // log(`Active users: ${msg.activeCount}`); 
           }
 
+          // ONLY trigger a transition if we are truly changing states
+          // Otherwise, we keep restarting the 15-second solo timer!
           if (msg.type === 'SOLO_ACTIVE' && currentState !== STATES.SOLO_ACTIVE) {
               transitionTo(STATES.SOLO_ACTIVE);
           } else if (msg.type === 'ENCOUNTER_ACTIVE' && currentState !== STATES.ENCOUNTER_ACTIVE) {
