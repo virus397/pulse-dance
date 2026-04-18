@@ -21,12 +21,15 @@ const STATES = {
   // App Data
   let currentMood = null;
   let movementIntensity = 0; // 0 to 100
-  let ws = null;
   let lastAcceleration = { x: 0, y: 0, z: 0 };
   
   // Timer State
   let soloTimerTimeout = null;
   let hintShown = false;
+
+  // Sync / Polling State
+  const localClientId = Math.random().toString(36).substring(2, 15);
+  let heartbeatInterval = null;
   
   // Audio Data
   let audioContext = null;
@@ -50,6 +53,7 @@ const STATES = {
     poeticHint: document.getElementById('poetic-hint'),
     pulseVisual: document.getElementById('pulse-visual'),
     intensitySpan: document.querySelector('#intensity-display span'),
+    userCountSpan: document.getElementById('active-user-count'),
     debugState: document.getElementById('debug-state'),
     debugLog: document.getElementById('debug-log'),
     debugContent: document.getElementById('debug-content')
@@ -106,7 +110,7 @@ const STATES = {
         screens.active.classList.remove('hidden');
         screens.active.classList.add('active');
         ui.statusHeader.textContent = 'Connecting...';
-        connectWebSocket();
+        startHeartbeat();
         break;
   
       case STATES.SOLO_ACTIVE:
@@ -137,7 +141,7 @@ const STATES = {
             encounterAudioElement.playbackRate = 1.0;
         }
         
-        // Start 15-second timer purely based on time entering the state
+        // Ensure the hint doesn't show immediately if switching back to solo quickly
         if (soloTimerTimeout) clearTimeout(soloTimerTimeout);
         hintShown = false;
         
@@ -286,7 +290,6 @@ const STATES = {
   }
   
   // --- HTTP POLLING (Replaces WebSockets for Vercel) ---
-  let clientId = Math.random().toString(36).substring(2, 15);
   let syncInterval = null;
 
   async function syncState(action = 'heartbeat') {
@@ -294,9 +297,17 @@ const STATES = {
           const res = await fetch('/api/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clientId, type: action })
+              body: JSON.stringify({ clientId: localClientId, type: action })
           });
           const msg = await res.json();
+          
+          // Update UI counter
+          if (msg.activeCount !== undefined) {
+              ui.userCountSpan.textContent = msg.activeCount;
+              // Log to debug panel so we can see it's working
+              // log(`Active users: ${msg.activeCount}`); 
+          }
+
           if (msg.type === 'SOLO_ACTIVE' && currentState !== STATES.SOLO_ACTIVE) {
               transitionTo(STATES.SOLO_ACTIVE);
           } else if (msg.type === 'ENCOUNTER_ACTIVE' && currentState !== STATES.ENCOUNTER_ACTIVE) {
@@ -305,15 +316,16 @@ const STATES = {
               transitionTo(STATES.PROXIMITY_SUSTAINED);
           }
       } catch (e) {
-          log('Sync Error');
+          console.error(e);
+          log('Sync Error (Check server console)');
       }
   }
 
-  function connectWebSocket() {
+  function startHeartbeat() {
     log('Starting API Polling');
     syncState(); // initial sync
     if (syncInterval) clearInterval(syncInterval);
-    syncInterval = setInterval(() => syncState('heartbeat'), 2000);
+    syncInterval = setInterval(() => syncState('heartbeat'), 3000);
   }
   
   // --- HARDWARE APIs ---
@@ -427,10 +439,8 @@ const STATES = {
           audioContext.resume().catch(() => {});
       }
       
-      // Hide hint once they hit the magical sustained state or a real encounter
-      if ((currentState === STATES.ENCOUNTER_ACTIVE || currentState === STATES.PROXIMITY_SUSTAINED) && hintShown) {
-          ui.poeticHint.classList.remove('visible');
-      }
+      // Ensure the text stays exactly as requested in all subsequent states.
+      // Removing this logic so the text STAYS VISIBLE once it appears.
 
       // Update Audio Volume based on movement intensity (0 to 1)
       if (baseGain && audioContext) {

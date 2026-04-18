@@ -81,9 +81,27 @@ button:active {
 }
 
 /* Active Session Styles */
+#active-user-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: #ccc;
+    z-index: 100;
+}
+
+#active-user-badge span {
+    font-weight: bold;
+    color: #fff;
+}
+
 #status-header {
     position: absolute;
-    top: 40px;
+    top: 60px;
     font-size: 1.2rem;
     color: #888;
     text-transform: uppercase;
@@ -134,14 +152,13 @@ button:active {
     letter-spacing: 1px;
     line-height: 1.6;
     opacity: 0;
-    transition: opacity 8s ease-in-out; /* Super slow, smooth fade out */
+    transition: opacity 3s ease-in-out;
     pointer-events: none;
     z-index: 10;
 }
 
 .poetic-hint.visible {
     opacity: 1;
-    transition: opacity 3s ease-in; /* Faster fade in so it feels responsive, but slow fade out */
 }
 
 #intensity-display {
