@@ -146,6 +146,10 @@ const STATES = {
         if (soloTimerTimeout) clearTimeout(soloTimerTimeout);
         hintShown = false;
         
+        // Reset the text content in case they leave and re-enter solo
+        ui.poeticHint.textContent = 'something beautiful happens when we approach each other';
+        ui.poeticHint.classList.remove('fade-out');
+        
         log('Starting 15s solo timer...');
         soloTimerTimeout = setTimeout(() => {
             if (currentState === STATES.SOLO_ACTIVE && !hintShown) {
@@ -154,11 +158,22 @@ const STATES = {
                 hintShown = true;
                 log('15s reached: Hint shown, color transitioning...');
                 
-                // Trigger PROXIMITY_SUSTAINED exactly 4s after the hint shows
+                // Trigger text swap and PROXIMITY_SUSTAINED exactly 4s later
                 setTimeout(() => {
                     if (currentState === STATES.SOLO_ACTIVE) {
-                        log('4s delay finished: Triggering local PROXIMITY_SUSTAINED magic!');
-                        transitionTo(STATES.PROXIMITY_SUSTAINED);
+                        log('4s delay finished: Crossfading text and triggering magic!');
+                        
+                        // 1. Fade the old text out
+                        ui.poeticHint.classList.add('fade-out');
+                        
+                        // 2. Wait for fade out to finish (500ms), then swap text, fade back in, and trigger magic
+                        setTimeout(() => {
+                            if (currentState === STATES.SOLO_ACTIVE) {
+                                ui.poeticHint.textContent = 'Now dance together and tune into each other’s frequency';
+                                ui.poeticHint.classList.remove('fade-out');
+                                transitionTo(STATES.PROXIMITY_SUSTAINED);
+                            }
+                        }, 500);
                     }
                 }, 4000);
             }

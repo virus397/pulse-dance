@@ -161,6 +161,12 @@ button:active {
     opacity: 1;
 }
 
+/* Fast fade out class for crossfading text */
+.poetic-hint.fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
 #intensity-display {
     position: absolute;
     bottom: 80px;
