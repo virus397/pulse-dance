@@ -25,7 +25,7 @@ const STATES = {
   
   // Sequence Timer State
   let sequenceTimer1 = null; // 15s timer
-  let sequenceTimer2 = null; // 4s timer
+  let sequenceTimer2 = null; // 8s timer
   let textSwapTimer = null;  // 500ms crossfade timer
   let sequenceLock = false;  // Lock to completely ignore polling during the magical sequence
 
@@ -175,9 +175,9 @@ const STATES = {
             ui.poeticHint.classList.add('visible');
             ui.pulseVisual.classList.add('glow-hint');
             
-            // 2. Keep it for exactly 4 seconds
+            // 2. Keep it for exactly 8 seconds
             sequenceTimer2 = setTimeout(() => {
-                log('4s elapsed. Swapping text to final and launching PROXIMITY_SUSTAINED.');
+                log('8s elapsed. Swapping text to final and launching PROXIMITY_SUSTAINED.');
                 
                 // Trigger smooth CSS fade-out for crossfade
                 ui.poeticHint.classList.add('fade-out');
@@ -192,9 +192,9 @@ const STATES = {
                     
                 }, 500); // 500ms for CSS fade out to finish
                 
-            }, 4000);
+            }, 8000); // 8 seconds duration for the first hint
             
-        }, 15000);
+        }, 15000); // 15 seconds duration for solo silence before hints
         // ==========================================
         break;
   
@@ -292,8 +292,17 @@ const STATES = {
         currentMood = e.target.getAttribute('data-mood');
         log(`Mood selected: ${currentMood}. Processing...`);
         
-        // Immediately transition to room and initiate audio
+        // Show loading state BEFORE transitioning to room
+        screens.mood.classList.remove('active');
+        screens.mood.classList.add('hidden');
+        screens.active.classList.remove('hidden');
+        screens.active.classList.add('active');
+        ui.statusHeader.textContent = 'Loading sounds...';
+        
+        // Wait for audio to fully load and decode before joining room
         await initAudio(); 
+        
+        // Now that audio is playing silently, join the room
         transitionTo(STATES.JOIN_ROOM);
       });
     });
