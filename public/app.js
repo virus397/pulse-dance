@@ -23,9 +23,11 @@ const STATES = {
   let movementIntensity = 0; // 0 to 100
   let lastAcceleration = { x: 0, y: 0, z: 0 };
   
-  // Timer State
-  let soloTimerTimeout = null;
-  let hintShown = false;
+  // Sequence Timer State
+  let sequenceTimer1 = null; // 15s timer
+  let sequenceTimer2 = null; // 4s timer
+  let textSwapTimer = null;  // 500ms crossfade timer
+  let sequenceLock = false;  // Lock to completely ignore polling during the magical sequence
 
   // Sync / Polling State
   const localClientId = Math.random().toString(36).substring(2, 15);
@@ -37,7 +39,7 @@ const STATES = {
   let baseGain = null;
   let encounterAudioSource = null;
   let encounterGain = null;
-  let audioBuffers = {}; // Store preloaded tracks
+  const audioBuffers = {}; // Store preloaded tracks
   
   // DOM Elements
   const screens = {
@@ -78,6 +80,15 @@ const STATES = {
     
     // Start the visual update loop
     requestAnimationFrame(updateVisuals);
+  }
+  
+  function clearAllSequenceTimers() {
+      if (sequenceTimer1) clearTimeout(sequenceTimer1);
+      if (sequenceTimer2) clearTimeout(sequenceTimer2);
+      if (textSwapTimer) clearTimeout(textSwapTimer);
+      sequenceTimer1 = null;
+      sequenceTimer2 = null;
+      textSwapTimer = null;
   }
   
   function transitionTo(newState) {
@@ -142,42 +153,49 @@ const STATES = {
             window.encounterFilter.frequency.setTargetAtTime(500, audioContext.currentTime, 2.0); 
         }
         
-        // Ensure the hint doesn't show immediately if switching back to solo quickly
-        if (soloTimerTimeout) clearTimeout(soloTimerTimeout);
-        hintShown = false;
+        // ==========================================
+        // STRICT SEQUENCE TIMING LOGIC
+        // ==========================================
+        clearAllSequenceTimers();
+        sequenceLock = true; // Lock polling from interrupting
         
-        // Reset the text content in case they leave and re-enter solo
-        ui.poeticHint.textContent = 'something beautiful happens when we approach each other';
+        // Ensure text is hidden at the absolute start of SOLO_ACTIVE
+        ui.poeticHint.classList.remove('visible');
         ui.poeticHint.classList.remove('fade-out');
+        ui.poeticHint.textContent = '';
         
-        log('Starting 15s solo timer...');
-        soloTimerTimeout = setTimeout(() => {
-            if (currentState === STATES.SOLO_ACTIVE && !hintShown) {
-                ui.poeticHint.classList.add('visible');
-                ui.pulseVisual.classList.add('glow-hint');
-                hintShown = true;
-                log('15s reached: Hint shown, color transitioning...');
+        log('Starting strict 15s delay before first text...');
+        
+        // 1. Wait exactly 15 seconds
+        sequenceTimer1 = setTimeout(() => {
+            log('15s reached. Showing first title.');
+            
+            // Show: "something beautiful happens when we approach each other"
+            ui.poeticHint.textContent = 'something beautiful happens when we approach each other';
+            ui.poeticHint.classList.add('visible');
+            ui.pulseVisual.classList.add('glow-hint');
+            
+            // 2. Keep it for exactly 4 seconds
+            sequenceTimer2 = setTimeout(() => {
+                log('4s elapsed. Swapping text to final and launching PROXIMITY_SUSTAINED.');
                 
-                // Trigger text swap and PROXIMITY_SUSTAINED exactly 4s later
-                setTimeout(() => {
-                    if (currentState === STATES.SOLO_ACTIVE) {
-                        log('4s delay finished: Crossfading text and triggering magic!');
-                        
-                        // 1. Fade the old text out
-                        ui.poeticHint.classList.add('fade-out');
-                        
-                        // 2. Wait for fade out to finish (500ms), then swap text, fade back in, and trigger magic
-                        setTimeout(() => {
-                            if (currentState === STATES.SOLO_ACTIVE) {
-                                ui.poeticHint.textContent = 'Now dance together and tune into each other’s frequency';
-                                ui.poeticHint.classList.remove('fade-out');
-                                transitionTo(STATES.PROXIMITY_SUSTAINED);
-                            }
-                        }, 500);
-                    }
-                }, 4000);
-            }
+                // Trigger smooth CSS fade-out for crossfade
+                ui.poeticHint.classList.add('fade-out');
+                
+                textSwapTimer = setTimeout(() => {
+                    // Change to final text while it's invisible
+                    ui.poeticHint.textContent = 'Now dance together and tune into each other’s frequency.';
+                    ui.poeticHint.classList.remove('fade-out');
+                    
+                    // Launch encounter magic and keep text permanently visible
+                    transitionTo(STATES.PROXIMITY_SUSTAINED);
+                    
+                }, 500); // 500ms for CSS fade out to finish
+                
+            }, 4000);
+            
         }, 15000);
+        // ==========================================
         break;
   
       case STATES.ENCOUNTER_ACTIVE:
@@ -203,6 +221,11 @@ const STATES = {
         screens.active.classList.add('active');
         ui.pulseVisual.classList.add('harmonized');
         startVibration(); // Start the heartbeat haptics
+        
+        // Ensure text is permanently locked into this state and visible
+        ui.poeticHint.textContent = 'Now dance together and tune into each other’s frequency.';
+        ui.poeticHint.classList.remove('fade-out');
+        ui.poeticHint.classList.add('visible'); 
         
         // The Magical Harmonization:
         // 1. Bring encounter layer up to 100% volume smoothly and continuously using linearRampToValueAtTime (8 seconds fade in)
@@ -267,19 +290,10 @@ const STATES = {
     document.querySelectorAll('.mood-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         currentMood = e.target.getAttribute('data-mood');
-        log(`Mood selected: ${currentMood}. Loading...`);
+        log(`Mood selected: ${currentMood}. Processing...`);
         
-        // Show loading state BEFORE transitioning to room
-        screens.mood.classList.remove('active');
-        screens.mood.classList.add('hidden');
-        screens.active.classList.remove('hidden');
-        screens.active.classList.add('active');
-        ui.statusHeader.textContent = 'Loading sounds...';
-        
-        // Wait for audio to fully load and decode before joining room
+        // Immediately transition to room and initiate audio
         await initAudio(); 
-        
-        // Now that audio is playing silently, join the room
         transitionTo(STATES.JOIN_ROOM);
       });
     });
@@ -323,18 +337,30 @@ const STATES = {
           // Update UI counter
           if (msg.activeCount !== undefined) {
               ui.userCountSpan.textContent = msg.activeCount;
-              // Log to debug panel so we can see it's working
-              // log(`Active users: ${msg.activeCount}`); 
           }
 
-          // ONLY trigger a transition if we are truly changing states
-          // Otherwise, we keep restarting the 15-second solo timer!
-          if (msg.type === 'SOLO_ACTIVE' && currentState !== STATES.SOLO_ACTIVE) {
+          // If the strict local sequence is running, completely ignore server pings 
+          // that try to reset us back to SOLO_ACTIVE. This prevents the timer from breaking.
+          if (sequenceLock && msg.type === 'SOLO_ACTIVE') {
+              return; // Ignore
+          }
+
+          // Otherwise, process normal state changes
+          if (msg.type === 'SOLO_ACTIVE' && currentState === STATES.JOIN_ROOM) {
               transitionTo(STATES.SOLO_ACTIVE);
-          } else if (msg.type === 'ENCOUNTER_ACTIVE' && currentState !== STATES.ENCOUNTER_ACTIVE) {
+          } else if (msg.type === 'ENCOUNTER_ACTIVE' && currentState !== STATES.ENCOUNTER_ACTIVE && currentState !== STATES.PROXIMITY_SUSTAINED) {
+              sequenceLock = false; // Break the lock if a REAL encounter overrides us
+              clearAllSequenceTimers();
               transitionTo(STATES.ENCOUNTER_ACTIVE);
           } else if (msg.type === 'PROXIMITY_SUSTAINED' && currentState !== STATES.PROXIMITY_SUSTAINED) {
+              sequenceLock = false;
+              clearAllSequenceTimers();
               transitionTo(STATES.PROXIMITY_SUSTAINED);
+          } else if (msg.type === 'SOLO_ACTIVE' && (currentState === STATES.ENCOUNTER_ACTIVE || currentState === STATES.PROXIMITY_SUSTAINED)) {
+              // Only drop back to solo if someone specifically leaves
+              sequenceLock = false;
+              clearAllSequenceTimers();
+              transitionTo(STATES.SOLO_ACTIVE);
           }
       } catch (e) {
           console.error(e);
@@ -519,9 +545,6 @@ const STATES = {
       if (audioContext && audioContext.state === 'suspended') {
           audioContext.resume().catch(() => {});
       }
-      
-      // Ensure the text stays exactly as requested in all subsequent states.
-      // Removing this logic so the text STAYS VISIBLE once it appears.
 
       // Update Audio Volume based on movement intensity (0 to 1)
       if (baseGain && audioContext) {
