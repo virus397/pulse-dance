@@ -33,12 +33,11 @@ const STATES = {
   
   // Audio Data
   let audioContext = null;
-  let baseAudioElement = null;
   let baseAudioSource = null;
   let baseGain = null;
-  let encounterAudioElement = null;
   let encounterAudioSource = null;
   let encounterGain = null;
+  let audioBuffers = {}; // Store preloaded tracks
   
   // DOM Elements
   const screens = {
@@ -71,6 +70,9 @@ const STATES = {
     if (!audioContext && AudioContext) {
         audioContext = new AudioContext();
     }
+    
+    // Asynchronously preload all audio files into RAM immediately while reading the Intro screen
+    preloadAllAudio();
     
     transitionTo(STATES.READY);
     
@@ -118,9 +120,11 @@ const STATES = {
         screens.active.classList.add('active');
         
         if (currentMood === 'calm') {
-            ui.statusHeader.textContent = `Find a comfortable place to sit/meditate/breathe`;
+            ui.statusHeader.textContent = `Relax, you are safe`;
         } else if (currentMood === 'anxious') {
             ui.statusHeader.textContent = `Move your body to shake off anxiety.`;
+        } else if (currentMood === 'playful') {
+            ui.statusHeader.textContent = `Have fun! Shake your phone and dance!`;
         } else {
             ui.statusHeader.textContent = `Dancing Solo (${currentMood})`;
         }
@@ -130,15 +134,12 @@ const STATES = {
         ui.pulseVisual.classList.remove('glow-hint');
         stopVibration();
         
-        // Reset pitch and mute encounter layer gracefully over 3 seconds
+        // Reset filter and gracefully mute encounter track
         if (encounterGain && audioContext) {
             encounterGain.gain.setTargetAtTime(0, audioContext.currentTime, 1.5);
         }
-        if (baseAudioElement) {
-            baseAudioElement.playbackRate = 1.0;
-        }
-        if (encounterAudioElement) {
-            encounterAudioElement.playbackRate = 1.0;
+        if (window.encounterFilter && audioContext) {
+            window.encounterFilter.frequency.setTargetAtTime(500, audioContext.currentTime, 2.0); 
         }
         
         // Ensure the hint doesn't show immediately if switching back to solo quickly
@@ -153,13 +154,13 @@ const STATES = {
                 hintShown = true;
                 log('15s reached: Hint shown, color transitioning...');
                 
-                // Trigger PROXIMITY_SUSTAINED 20s after the hint shows (+15 seconds from original)
+                // Trigger PROXIMITY_SUSTAINED exactly 4s after the hint shows
                 setTimeout(() => {
                     if (currentState === STATES.SOLO_ACTIVE) {
-                        log('20s delay finished: Triggering local PROXIMITY_SUSTAINED magic!');
+                        log('4s delay finished: Triggering local PROXIMITY_SUSTAINED magic!');
                         transitionTo(STATES.PROXIMITY_SUSTAINED);
                     }
-                }, 20000);
+                }, 4000);
             }
         }, 15000);
         break;
@@ -189,17 +190,20 @@ const STATES = {
         startVibration(); // Start the heartbeat haptics
         
         // The Magical Harmonization:
-        // 1. Bring encounter layer up to 100% volume over 8 seconds
+        // 1. Bring encounter layer up to 100% volume smoothly and continuously using linearRampToValueAtTime (8 seconds fade in)
         if (encounterGain && audioContext) {
-            encounterGain.gain.setTargetAtTime(1.0, audioContext.currentTime, 4.0); // 4.0 time constant = ~8-12s total fade
+            encounterGain.gain.cancelScheduledValues(audioContext.currentTime);
+            // Must set the current value to lock it in before ramping
+            encounterGain.gain.setValueAtTime(encounterGain.gain.value, audioContext.currentTime);
+            encounterGain.gain.linearRampToValueAtTime(1.0, audioContext.currentTime + 8.0);
         }
         
-        // 2. Pitch shift up by ~5% over 10 seconds for an uplifting, locked-in feel
-        if (baseAudioElement) {
-            baseAudioElement.playbackRate = 1.05;
-        }
-        if (encounterAudioElement) {
-            encounterAudioElement.playbackRate = 1.05;
+        // 2. Filter Sweep: Slowly open the low-pass filter over 8 seconds 
+        // to reveal the bright, full-spectrum encounter sound harmoniously.
+        if (window.encounterFilter && audioContext) {
+            window.encounterFilter.frequency.cancelScheduledValues(audioContext.currentTime);
+            window.encounterFilter.frequency.setValueAtTime(window.encounterFilter.frequency.value, audioContext.currentTime);
+            window.encounterFilter.frequency.linearRampToValueAtTime(20000, audioContext.currentTime + 8.0); 
         }
         break;
   
@@ -332,8 +336,48 @@ const STATES = {
   
   // --- HARDWARE APIs ---
   
+  async function fetchAndDecodeAudio(filename) {
+    if (audioBuffers[filename]) {
+        return audioBuffers[filename]; // Return cached buffer if already preloaded
+    }
+    
+    let url = `assets/${filename}.mp3`;
+    try {
+        let response = await fetch(url);
+        if (!response.ok) {
+            url = `assets/${filename}.aiff`;
+            response = await fetch(url);
+        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const decodedBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        audioBuffers[filename] = decodedBuffer; // Cache it
+        return decodedBuffer;
+    } catch (e) {
+        log(`Failed to load audio for ${filename}. Tried .mp3 and .aiff.`);
+        return null;
+    }
+  }
+
+  async function preloadAllAudio() {
+      // Aggressively download and decode all tracks in the background while user reads Intro screens
+      log('Background preloading started...');
+      try {
+          await Promise.all([
+              fetchAndDecodeAudio('calm'),
+              fetchAndDecodeAudio('anxious'),
+              fetchAndDecodeAudio('playful'),
+              fetchAndDecodeAudio('encounter')
+          ]);
+          log('All audio tracks successfully preloaded into RAM.');
+      } catch (e) {
+          log('Preloading failed, will fallback to loading on click.');
+      }
+  }
+
   async function initAudio() {
-    log('Streaming tracks and starting audio playback...');
+    log('Initializing audio playback from RAM...');
     
     // Explicitly resume (needed for iOS Safari to unlock audio context on user interaction)
     if (audioContext && audioContext.state === 'suspended') {
@@ -345,31 +389,51 @@ const STATES = {
         return;
     }
     
+    // Grab completely pre-decoded tracks from RAM (instant/zero latency)
+    const baseBuffer = await fetchAndDecodeAudio(currentMood);
+    const encounterBuffer = await fetchAndDecodeAudio('encounter');
+    
     // Create Base Track Nodes
     baseGain = audioContext.createGain();
     baseGain.gain.value = 0; // Starts silent, volume controlled by movement
     baseGain.connect(audioContext.destination);
     
-    baseAudioElement = new Audio(`assets/${currentMood}.mp3`);
-    baseAudioElement.loop = true;
-    baseAudioElement.crossOrigin = "anonymous";
-    baseAudioSource = audioContext.createMediaElementSource(baseAudioElement);
-    baseAudioSource.connect(baseGain);
-    baseAudioElement.play().catch(e => log('Audio play failed: ' + e));
+    if (baseBuffer) {
+        baseAudioSource = audioContext.createBufferSource();
+        baseAudioSource.buffer = baseBuffer;
+        baseAudioSource.loop = true;
+        baseAudioSource.connect(baseGain);
+        baseAudioSource.start(); // Starts instantly from RAM
+    } else {
+        log('WARNING: Base track missing.');
+    }
     
     // Create Encounter Track Nodes
     encounterGain = audioContext.createGain();
     encounterGain.gain.value = 0; // Starts silent, opens during ENCOUNTER_ACTIVE
-    encounterGain.connect(audioContext.destination);
     
-    encounterAudioElement = new Audio(`assets/encounter.mp3`);
-    encounterAudioElement.loop = true;
-    encounterAudioElement.crossOrigin = "anonymous";
-    encounterAudioSource = audioContext.createMediaElementSource(encounterAudioElement);
-    encounterAudioSource.connect(encounterGain);
-    encounterAudioElement.play().catch(e => log('Encounter play failed: ' + e));
+    // Create a Low-Pass Filter for the encounter track
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 500; // Start muffled
     
-    log('Audio initialized and streaming instantly.');
+    // Store it globally so we can sweep it during encounter
+    window.encounterFilter = filter; 
+    
+    encounterGain.connect(filter);
+    filter.connect(audioContext.destination);
+    
+    if (encounterBuffer) {
+        encounterAudioSource = audioContext.createBufferSource();
+        encounterAudioSource.buffer = encounterBuffer;
+        encounterAudioSource.loop = true;
+        encounterAudioSource.connect(encounterGain);
+        encounterAudioSource.start(); // Starts instantly from RAM in sync with base
+    } else {
+        log('WARNING: Encounter track missing.');
+    }
+    
+    log('Audio initialized and playing perfectly in sync.');
   }
 
   function startMotionTracking() {
